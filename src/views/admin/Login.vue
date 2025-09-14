@@ -31,7 +31,7 @@
 import { ref, reactive } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
-import { login } from '../../api/admin';
+import { login, getAdminInfo } from '../../api/admin';
 
 const router = useRouter();
 const loginFormRef = ref(null);
@@ -66,6 +66,16 @@ const handleLogin = () => {
         // 保存token和角色
         localStorage.setItem('token', res.data);
         localStorage.setItem('role', 'admin');
+        
+        // 获取管理员信息并保存ID
+        try {
+          const adminInfoRes = await getAdminInfo();
+          if (adminInfoRes.data && adminInfoRes.data.id) {
+            localStorage.setItem('userId', adminInfoRes.data.id);
+          }
+        } catch (error) {
+          console.error('获取管理员信息失败:', error);
+        }
         
         ElMessage.success('登录成功');
         

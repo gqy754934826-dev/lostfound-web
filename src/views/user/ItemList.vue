@@ -126,7 +126,10 @@ const viewItemDetail = (id) => {
 
 // 联系发布者
 const contactPublisher = (userId) => {
-  router.push(`/user/chat?userId=${userId}`);
+  // 确保userId是数字类型
+  const publisherId = Number(userId);
+  console.log('联系发布者，publisherId类型:', typeof publisherId, '值:', publisherId);
+  router.push(`/user/chat?userId=${publisherId}`);
 };
 
 onMounted(() => {

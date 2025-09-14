@@ -32,7 +32,7 @@
 import { ref, reactive } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
-import { login } from '../../api/user';
+import { login, getUserInfo } from '../../api/user';
 
 const router = useRouter();
 const loginFormRef = ref(null);
@@ -68,6 +68,16 @@ const handleLogin = () => {
         // 保存token和角色
         localStorage.setItem('token', res.data);
         localStorage.setItem('role', 'user');
+        
+        // 获取用户信息并保存用户ID
+        try {
+          const userInfoRes = await getUserInfo();
+          if (userInfoRes.data && userInfoRes.data.id) {
+            localStorage.setItem('userId', userInfoRes.data.id);
+          }
+        } catch (error) {
+          console.error('获取用户信息失败:', error);
+        }
         
         ElMessage.success('登录成功');
         

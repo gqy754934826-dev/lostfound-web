@@ -160,7 +160,10 @@ const markAsResolved = async () => {
 
 // 联系发布者
 const contactPublisher = () => {
-  router.push(`/user/chat?userId=${item.value.userId}`);
+  // 确保userId是数字类型
+  const publisherId = Number(item.value.userId);
+  console.log('联系发布者，publisherId类型:', typeof publisherId, '值:', publisherId);
+  router.push(`/user/chat?userId=${publisherId}`);
 };
 
 // 通过信息（管理员）

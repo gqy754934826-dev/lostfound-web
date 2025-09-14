@@ -17,6 +17,13 @@ service.interceptors.request.use(
       // 设置请求头
       config.headers['Authorization'] = `Bearer ${token}`;
     }
+    
+    // 处理catchError参数
+    if (config.catchError) {
+      config.hideErrorMessage = true;
+      delete config.catchError; // 删除自定义参数，避免发送到服务器
+    }
+    
     return config;
   },
   error => {
@@ -29,10 +36,14 @@ service.interceptors.request.use(
 service.interceptors.response.use(
   response => {
     const res = response.data;
+    const config = response.config;
     
     // 如果返回的状态码不是200，说明接口请求失败
     if (res.code !== 200) {
-      ElMessage.error(res.message || '系统异常');
+      // 显示错误消息，除非请求配置中指定了不显示
+      if (!config.hideErrorMessage) {
+        ElMessage.error(res.message || '系统异常');
+      }
       
       // 401: 未登录或token过期
       if (res.code === 401) {
@@ -49,7 +60,11 @@ service.interceptors.response.use(
         }
       }
       
-      return Promise.reject(new Error(res.message || '系统异常'));
+      // 创建自定义错误对象，包含更多信息
+      const error = new Error(res.message || '系统异常');
+      error.code = res.code;
+      error.data = res.data;
+      return Promise.reject(error);
     } else {
       return res;
     }

@@ -20,8 +20,10 @@
               <el-avatar :size="40" :src="user.avatarUrl || defaultAvatar"></el-avatar>
               <div class="contact-info">
                 <div class="contact-name">{{ user.realName }}</div>
-                <div class="contact-username">{{ user.username }}</div>
+                <div class="contact-last-message" v-if="user.lastMessage">{{ user.lastMessage }}</div>
+                <div class="contact-username" v-else>{{ user.username }}</div>
               </div>
+              <div class="unread-badge" v-if="user.unreadCount && user.unreadCount > 0">{{ user.unreadCount }}</div>
             </div>
             <div v-if="chatUsers.length === 0" class="no-contact">
               暂无聊天记录
@@ -34,6 +36,7 @@
           <template v-if="currentChatUser">
             <div class="chat-header">
               <h3>{{ currentChatUser.realName }}</h3>
+              <el-button type="danger" size="small" @click="handleDeleteContact">删除联系人</el-button>
             </div>
             <div class="chat-messages" ref="chatMessagesRef">
               <div v-if="chatMessages.length === 0" class="no-message">
@@ -76,13 +79,16 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, nextTick, watch } from 'vue';
-import { useRoute } from 'vue-router';
-import { ElMessage } from 'element-plus';
-import { getChatUserList, getChatHistory, sendMessage as apiSendMessage, markMessageAsRead } from '../../api/chat';
+import { ref, reactive, computed, onMounted, onUnmounted, nextTick, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import { ElMessage, ElMessageBox } from 'element-plus';
+import { getChatUserListWithDetail, getChatHistory, sendMessage as apiSendMessage, markMessageAsRead, deleteContact as apiDeleteContact } from '../../api/chat';
 import { getUserInfo } from '../../api/user';
+import eventBus from '../../utils/eventBus';
+import webSocketClient from '../../utils/websocket';
 
 const route = useRoute();
+const router = useRouter();
 const chatUsers = ref([]);
 const chatMessages = ref([]);
 const currentChatUser = ref(null);
@@ -96,20 +102,47 @@ const defaultAvatar = 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726
 // 获取聊天用户列表
 const fetchChatUsers = async () => {
   try {
-    const res = await getChatUserList();
-    chatUsers.value = res.data;
-    
-    // 如果URL中有userId参数，选择对应的用户
-    const urlUserId = route.query.userId;
-    if (urlUserId) {
-      const targetUser = chatUsers.value.find(user => user.userId === parseInt(urlUserId));
-      if (targetUser) {
-        selectChatUser(targetUser);
+    const res = await getChatUserListWithDetail();
+    if (res && res.data) {
+      chatUsers.value = res.data;
+      
+      // 如果URL中有userId参数，选择对应的用户
+      const urlUserId = route.query.userId;
+      if (urlUserId) {
+        console.log('URL中包含userId参数:', urlUserId);
+        // 确保将urlUserId转换为数字进行比较
+        const toUserId = Number(urlUserId);
+        console.log('转换后的userId类型:', typeof toUserId, '值:', toUserId);
+        
+        // 检查toUserId是否为有效数字
+        if (isNaN(toUserId)) {
+          console.error('URL参数userId转换为数字失败:', urlUserId);
+          ElMessage.error('无效的用户ID参数');
+          return;
+        }
+        
+        const targetUser = chatUsers.value.find(user => {
+          const userIdNum = Number(user.userId);
+          console.log('比较用户ID:', userIdNum, '与目标ID:', toUserId, '是否相等:', userIdNum === toUserId);
+          return userIdNum === toUserId;
+        });
+        
+        if (targetUser) {
+          console.log('找到匹配的用户:', targetUser);
+          selectChatUser(targetUser);
+        } else {
+          console.log('未找到匹配的用户，可能需要创建新的聊天');
+          // 如果在现有聊天列表中找不到该用户，可能需要创建新的聊天
+          // 这里可以添加逻辑来处理这种情况
+        }
       }
+    } else {
+      console.warn('获取聊天用户列表返回数据格式不正确');
+      chatUsers.value = [];
     }
   } catch (error) {
     console.error('获取聊天用户列表失败:', error);
-    ElMessage.error('获取聊天用户列表失败，请稍后再试');
+    ElMessage.error('获取聊天用户列表失败: ' + (error.message || '未知错误'));
     chatUsers.value = []; // 确保在错误情况下设置为空数组
   }
 };
@@ -133,11 +166,30 @@ const selectChatUser = async (user) => {
   currentChatUser.value = user;
   await fetchChatHistory();
   
-  // 标记该用户发送的消息为已读
-  try {
-    await markMessageAsRead(user.userId);
-  } catch (error) {
-    console.error('标记消息为已读失败:', error);
+  // 当用户点击聊天框时，将该用户发送的消息标记为已读
+  if (user && user.userId) {
+    try {
+      // 确保userId是数字类型
+      const fromUserId = Number(user.userId);
+      console.log('标记消息为已读，fromUserId类型:', typeof fromUserId, '值:', fromUserId);
+      
+      // 检查fromUserId是否为有效数字
+      if (isNaN(fromUserId)) {
+        console.error('用户ID转换为数字失败:', user.userId);
+        ElMessage.error('无效的用户ID');
+        return;
+      }
+      
+      await markMessageAsRead(fromUserId);
+      console.log('选择聊天用户后标记消息为已读');
+      // 触发事件，通知Layout组件更新未读消息数量
+      eventBus.emit('update-unread-count');
+      // 刷新聊天用户列表，更新未读消息数量
+      fetchChatUsers();
+    } catch (error) {
+      console.error('标记消息为已读失败:', error);
+      ElMessage.error('标记消息为已读失败: ' + (error.message || '未知错误'));
+    }
   }
 };
 
@@ -146,17 +198,30 @@ const fetchChatHistory = async () => {
   if (!currentChatUser.value || !userId.value) return;
   
   try {
-    const res = await getChatHistory(currentChatUser.value.userId);
+    // 确保userId是数字类型
+    const chatUserId = Number(currentChatUser.value.userId);
+    console.log('获取聊天记录，userId类型:', typeof chatUserId, '值:', chatUserId);
+    
+    // 检查userId是否为有效数字
+    if (isNaN(chatUserId)) {
+      console.error('用户ID转换为数字失败:', currentChatUser.value.userId);
+      ElMessage.error('无效的用户ID');
+      return;
+    }
+    
+    const res = await getChatHistory(chatUserId);
     chatMessages.value = res.data;
     
     // 滚动到底部
     await nextTick();
     scrollToBottom();
     
-    // 标记该用户发送的消息为已读
-    await markMessageAsRead(currentChatUser.value.userId);
+    // 不再自动标记为已读，改为用户查看后手动标记
+    // 或在用户与消息交互后标记
+    // 移除自动调用markMessageAsRead的逻辑，改为等待用户交互后标记
   } catch (error) {
     console.error('获取聊天记录失败:', error);
+    ElMessage.error('获取聊天记录失败: ' + (error.message || '未知错误'));
   }
 };
 
@@ -166,8 +231,19 @@ const sendMessage = async () => {
   
   sending.value = true;
   try {
+    // 确保toUser是数字类型
+    const toUserId = Number(currentChatUser.value.userId);
+    console.log('发送消息，toUserId类型:', typeof toUserId, '值:', toUserId);
+    
+    // 检查toUserId是否为有效数字
+    if (isNaN(toUserId)) {
+      console.error('用户ID转换为数字失败:', currentChatUser.value.userId);
+      ElMessage.error('无效的用户ID');
+      return;
+    }
+    
     await apiSendMessage({
-      toUser: currentChatUser.value.userId,
+      toUser: toUserId, // 使用toUser作为参数名，与后端ChatDTO中的字段名一致
       content: messageContent.value.trim()
     });
     
@@ -176,11 +252,62 @@ const sendMessage = async () => {
     
     // 重新获取聊天记录
     await fetchChatHistory();
+    
+    // 用户发送消息时，标记当前对话为已读
+    // 因为发送消息表示用户已经查看了聊天内容
+    // 这里保留标记为已读的逻辑，因为用户发送消息时一定已经查看了聊天内容
+    await markMessageAsRead(toUserId); // 使用已转换的数字类型toUserId
+    eventBus.emit('update-unread-count');
+    // 刷新聊天用户列表，更新未读消息数量和最后一条消息
+    fetchChatUsers();
   } catch (error) {
     console.error('发送消息失败:', error);
-    ElMessage.error('发送消息失败');
+    ElMessage.error('发送消息失败: ' + (error.message || '未知错误'));
   } finally {
     sending.value = false;
+  }
+};
+
+// 删除联系人
+const handleDeleteContact = async () => {
+  if (!currentChatUser.value) return;
+  
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除联系人 ${currentChatUser.value.realName} 吗？删除后该联系人将从列表中移除，但聊天记录会保留。`,
+      '删除联系人',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning',
+      }
+    );
+    
+    // 确保contactUserId是数字类型
+    const contactUserId = Number(currentChatUser.value.userId);
+    console.log('删除联系人，contactUserId类型:', typeof contactUserId, '值:', contactUserId);
+    
+    // 检查contactUserId是否为有效数字
+    if (isNaN(contactUserId)) {
+      console.error('联系人ID转换为数字失败:', currentChatUser.value.userId);
+      ElMessage.error('无效的联系人ID');
+      return;
+    }
+    
+    const res = await apiDeleteContact(contactUserId);
+    ElMessage.success('删除联系人成功');
+    
+    // 重新获取聊天用户列表
+    await fetchChatUsers();
+    
+    // 清空当前聊天用户
+    currentChatUser.value = null;
+    chatMessages.value = [];
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('删除联系人失败:', error);
+      ElMessage.error('删除联系人失败: ' + (error.message || '未知错误'));
+    }
   }
 };
 
@@ -205,20 +332,135 @@ watch(chatMessages, () => {
   });
 });
 
-onMounted(() => {
-  fetchUserInfo();
+
+
+// 监听新消息事件
+const setupEventListeners = () => {
+  eventBus.on('new-message', handleNewMessage);
+  eventBus.on('read-status-update', handleReadStatusUpdate);
+  eventBus.on('contact-deleted', handleContactDeleted);
+};
+
+// 清除事件监听
+const cleanupEventListeners = () => {
+  eventBus.off('new-message', handleNewMessage);
+  eventBus.off('read-status-update', handleReadStatusUpdate);
+  eventBus.off('contact-deleted', handleContactDeleted);
+};
+
+// 处理新消息
+const handleNewMessage = (message) => {
+  // 如果当前正在与发送消息的用户聊天，则刷新聊天记录
+  if (currentChatUser.value && message.fromUser === currentChatUser.value.userId) {
+    fetchChatHistory();
+    // 不再自动标记为已读，改为等待用户交互后标记
+    // 用户需要查看消息后才会标记为已读
+    // 移除自动调用markMessageAsRead的逻辑，用户需要与消息交互后才会标记为已读
+  } 
+  // 无论是否是当前聊天的用户，都更新聊天用户列表以显示最新消息和未读数量
+  fetchChatUsers();
+};
+
+// 处理已读状态更新
+const handleReadStatusUpdate = (data) => {
+  console.log('收到已读状态更新:', data);
+  // 如果当前正在与相关用户聊天，则刷新聊天记录以更新已读状态
+  if (currentChatUser.value && 
+      (data.fromUser === currentChatUser.value.userId || data.toUser === currentChatUser.value.userId)) {
+    fetchChatHistory();
+  }
+  // 刷新聊天用户列表，更新未读消息数量
+  fetchChatUsers();
+};
+
+// 处理联系人删除
+const handleContactDeleted = (data) => {
+  console.log('收到联系人删除通知:', data);
+  // 刷新聊天用户列表
+  fetchChatUsers();
   
-  // 定时刷新聊天记录
+  // 如果当前正在与被删除的联系人聊天，则清空当前聊天
+  if (currentChatUser.value && currentChatUser.value.userId === data.contactUserId) {
+    currentChatUser.value = null;
+    chatMessages.value = [];
+    ElMessage.info('该联系人已被删除');
+  }
+};
+
+
+
+onMounted(async () => {
+  // 先获取用户信息，确保userId已设置
+  await fetchUserInfo();
+  
+  // 设置事件监听
+  setupEventListeners();
+  
+  // 获取聊天用户列表，这将处理URL中的userId参数
+  await fetchChatUsers();
+  
+  // 如果URL中有userId参数但在现有聊天列表中找不到对应用户
+  // 可能是首次联系该用户，需要特殊处理
+  const urlUserId = route.query.userId;
+  if (urlUserId && !currentChatUser.value) {
+    console.log('处理首次联系的用户:', urlUserId);
+    // 创建一个临时用户对象，用于首次联系
+    try {
+      // 确保将urlUserId转换为数字类型
+      const toUserId = Number(urlUserId);
+      console.log('转换后的toUserId类型:', typeof toUserId, '值:', toUserId);
+      
+      // 检查toUserId是否为有效数字
+      if (isNaN(toUserId)) {
+        console.error('URL参数userId转换为数字失败:', urlUserId);
+        ElMessage.error('无效的用户ID参数');
+        return;
+      }
+      
+      // 不再自动发送初始消息
+      // 仅记录日志，表示找到了用户ID
+      console.log('找到有效的用户ID:', toUserId);
+      
+      // 重新获取聊天用户列表
+      await fetchChatUsers();
+      
+      // 再次尝试选择用户
+      const targetUser = chatUsers.value.find(user => {
+        const userIdNum = Number(user.userId);
+        console.log('比较用户ID:', userIdNum, '与目标ID:', toUserId, '是否相等:', userIdNum === toUserId);
+        return userIdNum === toUserId;
+      });
+      
+      if (targetUser) {
+        console.log('找到匹配的用户:', targetUser);
+        selectChatUser(targetUser);
+      } else {
+        console.log('未找到匹配的用户，可能需要创建新的聊天');
+        ElMessage.warning('无法创建与该用户的聊天，请稍后再试');
+      }
+    } catch (error) {
+      console.error('创建新聊天失败:', error);
+      ElMessage.error('创建新聊天失败: ' + (error.message || '未知错误'));
+    }
+  }
+  
+  // 定时刷新聊天记录（作为备用机制）
   const timer = setInterval(() => {
     if (currentChatUser.value) {
       fetchChatHistory();
     }
-  }, 10000); // 每10秒刷新一次
+    // 定时刷新聊天用户列表，更新未读消息数量和最后一条消息
+    fetchChatUsers();
+  }, 30000); // 每30秒刷新一次
   
   // 组件卸载时清除定时器
-  return () => {
+  onUnmounted(() => {
     clearInterval(timer);
-  };
+  });
+});
+
+onUnmounted(() => {
+  cleanupEventListeners();
 });
 </script>
 
@@ -272,6 +514,7 @@ onMounted(() => {
   padding: 10px;
   cursor: pointer;
   transition: background-color 0.3s;
+  position: relative;
 }
 
 .contact-item:hover {
@@ -284,16 +527,47 @@ onMounted(() => {
 
 .contact-info {
   margin-left: 10px;
+  flex: 1;
+  overflow: hidden;
 }
 
 .contact-name {
   font-size: 14px;
   color: #303133;
+  font-weight: bold;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .contact-username {
   font-size: 12px;
   color: #909399;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.contact-last-message {
+  font-size: 12px;
+  color: #606266;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 160px;
+}
+
+.unread-badge {
+  background-color: #f56c6c;
+  color: white;
+  border-radius: 50%;
+  min-width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  padding: 0 4px;
 }
 
 .no-contact {
@@ -311,6 +585,9 @@ onMounted(() => {
 .chat-header {
   padding: 10px;
   border-bottom: 1px solid #ebeef5;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .chat-header h3 {

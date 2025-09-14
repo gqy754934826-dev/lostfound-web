@@ -65,12 +65,14 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { ArrowDown, Odometer, Document, Plus, ChatDotRound, User } from '@element-plus/icons-vue';
 import { getUserInfo } from '../../api/user';
 import { getUserDashboard } from '../../api/user';
+import eventBus from '../../utils/eventBus';
+import webSocketClient from '../../utils/websocket';
 
 const router = useRouter();
 const route = useRoute();
@@ -103,6 +105,39 @@ const fetchUnreadCount = async () => {
   }
 };
 
+// 监听消息已读事件和新消息事件
+const setupEventListeners = () => {
+  eventBus.on('update-unread-count', fetchUnreadCount);
+  eventBus.on('new-message', handleNewMessage);
+  eventBus.on('unread-count-update', handleUnreadCountUpdate);
+};
+
+// 清除事件监听
+const cleanupEventListeners = () => {
+  eventBus.off('update-unread-count', fetchUnreadCount);
+  eventBus.off('new-message', handleNewMessage);
+  eventBus.off('unread-count-update', handleUnreadCountUpdate);
+};
+
+// 处理新消息
+const handleNewMessage = (message) => {
+  // 收到新消息时更新未读消息数量
+  fetchUnreadCount();
+  
+  // 可以添加消息通知
+  ElMessage({
+    message: `收到来自 ${message.fromUserName || '用户'} 的新消息`,
+    type: 'info',
+    duration: 3000
+  });
+};
+
+// 处理未读消息数量更新
+const handleUnreadCountUpdate = (count) => {
+  console.log('收到WebSocket未读消息数量更新:', count);
+  unreadCount.value = count;
+};
+
 // 处理下拉菜单命令
 const handleCommand = (command) => {
   if (command === 'profile') {
@@ -125,19 +160,36 @@ const handleCommand = (command) => {
   }
 };
 
+// 初始化WebSocket连接
+const initWebSocket = () => {
+  if (userInfo.value && userInfo.value.id) {
+    webSocketClient.connect(userInfo.value.id);
+  }
+};
+
 onMounted(() => {
-  fetchUserInfo();
+  fetchUserInfo().then(() => {
+    // 获取用户信息后初始化WebSocket连接
+    initWebSocket();
+  });
   fetchUnreadCount();
+  setupEventListeners();
   
-  // 定时刷新未读消息数量
+  // 定时刷新未读消息数量（作为备用机制）
   const timer = setInterval(() => {
     fetchUnreadCount();
-  }, 60000); // 每分钟刷新一次
+  }, 10000); // 每10秒刷新一次
   
   // 组件卸载时清除定时器
   return () => {
     clearInterval(timer);
   };
+});
+
+onUnmounted(() => {
+  cleanupEventListeners();
+  // 关闭WebSocket连接
+  webSocketClient.close();
 });
 </script>
 

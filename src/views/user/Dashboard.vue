@@ -102,12 +102,13 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Document, Timer, Check, Message } from '@element-plus/icons-vue';
 import { getUserDashboard } from '../../api/user';
 import { getUserItemList, updateItemStatus } from '../../api/item';
+import eventBus from '../../utils/eventBus';
 
 const router = useRouter();
 const loading = ref(false);
@@ -200,9 +201,50 @@ const goToChat = () => {
   router.push('/user/chat');
 };
 
+// 监听事件
+const setupEventListeners = () => {
+  eventBus.on('new-message', handleNewMessage);
+  eventBus.on('update-unread-count', fetchDashboardData);
+  eventBus.on('unread-count-update', handleUnreadCountUpdate);
+};
+
+// 清除事件监听
+const cleanupEventListeners = () => {
+  eventBus.off('new-message', handleNewMessage);
+  eventBus.off('update-unread-count', fetchDashboardData);
+  eventBus.off('unread-count-update', handleUnreadCountUpdate);
+};
+
+// 处理新消息
+const handleNewMessage = () => {
+  // 收到新消息时更新仪表盘数据
+  fetchDashboardData();
+};
+
+// 处理未读消息数量更新
+const handleUnreadCountUpdate = (count) => {
+  console.log('Dashboard收到未读消息数量更新:', count);
+  dashboardData.value.unreadCount = count;
+};
+
 onMounted(() => {
   fetchDashboardData();
   fetchMyItems();
+  setupEventListeners();
+  
+  // 定时刷新仪表盘数据（作为备用机制）
+  const timer = setInterval(() => {
+    fetchDashboardData();
+  }, 10000); // 每10秒刷新一次
+  
+  // 组件卸载时清除定时器
+  return () => {
+    clearInterval(timer);
+  };
+});
+
+onUnmounted(() => {
+  cleanupEventListeners();
 });
 </script>
 
