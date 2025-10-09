@@ -18,7 +18,11 @@
         <div class="item-details">
           <div class="detail-item">
             <span class="detail-label">发布时间：</span>
-            <span>{{ item.createTime }}</span>
+            <span>{{ formatDateTime(item.createTime) }}</span>
+          </div>
+          <div class="detail-item" v-if="item.updateTime && item.updateTime !== item.createTime">
+            <span class="detail-label">最后修改时间：</span>
+            <span>{{ formatDateTime(item.updateTime) }}</span>
           </div>
           <div class="detail-item">
             <span class="detail-label">地点：</span>
@@ -33,6 +37,10 @@
             <el-tag :type="getStatusType(item.status)">
               {{ getStatusText(item.status) }}
             </el-tag>
+          </div>
+          <div class="detail-item" v-if="item.userId">
+            <span class="detail-label">发布者：</span>
+            <span>{{ item.username || '未知用户' }}</span>
           </div>
           <div class="detail-item">
             <span class="detail-label">描述：</span>
@@ -82,6 +90,7 @@ import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import { getItemDetail, updateItemStatus } from '../../api/item';
+import { formatDateTime } from '../../utils/dateUtils';
 
 const route = useRoute();
 const router = useRouter();
@@ -110,13 +119,6 @@ const fetchItemDetail = async () => {
   } finally {
     loading.value = false;
   }
-};
-
-// 格式化日期时间
-const formatDateTime = (dateTime) => {
-  if (!dateTime) return '';
-  const date = new Date(dateTime);
-  return date.toLocaleString();
 };
 
 // 获取状态类型

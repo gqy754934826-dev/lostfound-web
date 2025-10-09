@@ -54,7 +54,7 @@
                 ></el-avatar>
                 <div class="message-content">
                   <div class="message-text">{{ message.content }}</div>
-                  <div class="message-time">{{ formatTime(message.createTime) }}</div>
+                  <div class="message-time">{{ formatDateTime(message.createTime) }}</div>
                 </div>
               </div>
             </div>
@@ -86,6 +86,7 @@ import { getChatUserListWithDetail, getChatHistory, sendMessage as apiSendMessag
 import { getUserInfo } from '../../api/user';
 import eventBus from '../../utils/eventBus';
 import webSocketClient from '../../utils/websocket';
+import { formatDateTime } from '../../utils/dateUtils';
 
 const route = useRoute();
 const router = useRouter();
@@ -311,12 +312,7 @@ const handleDeleteContact = async () => {
   }
 };
 
-// 格式化时间
-const formatTime = (time) => {
-  if (!time) return '';
-  const date = new Date(time);
-  return date.toLocaleString();
-};
+// 使用通用的日期时间格式化函数
 
 // 滚动到底部
 const scrollToBottom = () => {
@@ -399,7 +395,7 @@ onMounted(async () => {
   // 获取聊天用户列表，这将处理URL中的userId参数
   await fetchChatUsers();
   
-  // 如果URL中有userId参数但在现有聊天列表中找不到对应用户
+  // 如果URL中有userId参数但在现有聊天列表中找不到对应用户，可能需要创建新的聊天
   // 可能是首次联系该用户，需要特殊处理
   const urlUserId = route.query.userId;
   if (urlUserId && !currentChatUser.value) {

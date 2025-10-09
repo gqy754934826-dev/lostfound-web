@@ -1,4 +1,4 @@
-import { createRouter, createWebHistory } from 'vue-router';
+import { createRouter, createWebHistory, createWebHashHistory } from 'vue-router';
 
 // 用户端页面
 import UserLayout from '../views/user/Layout.vue';
@@ -62,6 +62,18 @@ const routes = [
         meta: { title: '发布信息', requireAuth: true }
       },
       {
+        path: 'item/my',
+        name: 'MyItemList',
+        component: () => import('../views/user/MyItemList.vue'),
+        meta: { title: '我的发布', requireAuth: true }
+      },
+      {
+        path: 'item/edit/:id',
+        name: 'ItemEdit',
+        component: () => import('../views/user/ItemEdit.vue'),
+        meta: { title: '编辑信息', requireAuth: true }
+      },
+      {
         path: 'chat',
         name: 'UserChat',
         component: UserChat,
@@ -105,6 +117,12 @@ const routes = [
         meta: { title: '信息审核', requireAuth: true, isAdmin: true }
       },
       {
+        path: 'item/list',
+        name: 'AdminItemList',
+        component: () => import('../views/admin/ItemList.vue'),
+        meta: { title: '发布信息列表', requireAuth: true, isAdmin: true }
+      },
+      {
         path: 'user/manage',
         name: 'AdminUserManage',
         component: AdminUserManage,
@@ -127,7 +145,7 @@ const routes = [
 ];
 
 const router = createRouter({
-  history: createWebHistory(),
+  history: createWebHashHistory(),
   routes
 });
 

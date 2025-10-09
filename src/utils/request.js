@@ -2,9 +2,29 @@ import axios from 'axios';
 import { ElMessage } from 'element-plus';
 import router from '../router';
 
+// 获取API基础URL
+const getBaseURL = () => {
+  // 如果是生产环境，使用相对路径
+  if (process.env.NODE_ENV === 'production') {
+    return '/api';
+  }
+  
+  // 开发环境下，检查当前访问的域名
+  const currentHost = window.location.host;
+  
+  // 如果是通过内网穿透域名访问，使用指定的后端地址
+  if (currentHost.includes('.cpolar.') || currentHost.includes('.ngrok.') || currentHost.includes('.natapp.')) {
+    // 使用后端的内网穿透地址
+    return 'https://12be2b1d.r32.cpolar.top';
+  }
+  
+  // 默认使用localhost
+  return 'http://localhost:8080';
+};
+
 // 创建axios实例
 const service = axios.create({
-  baseURL: 'http://localhost:8080', // API的base_url
+  baseURL: getBaseURL(), // API的base_url
   timeout: 15000 // 请求超时时间
 });
 

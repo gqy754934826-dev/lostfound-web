@@ -41,13 +41,17 @@
             <span>信息大厅</span>
           </el-menu-item>
           <el-menu-item index="/user/item/publish">
-            <el-icon><plus /></el-icon>
-            <span>发布信息</span>
-          </el-menu-item>
+          <el-icon><Plus /></el-icon>
+          <span>发布信息</span>
+        </el-menu-item>
+        <el-menu-item index="/user/item/my">
+          <el-icon><Document /></el-icon>
+          <span>我的发布</span>
+        </el-menu-item>
           <el-menu-item index="/user/chat">
             <el-icon><chat-dot-round /></el-icon>
             <span>消息中心</span>
-            <el-badge :value="unreadCount" :max="99" v-if="unreadCount > 0" class="unread-badge" />
+            <el-badge :value="unreadCount" :max="99" v-if="unreadCount > 0" class="message-badge" />
           </el-menu-item>
           <el-menu-item index="/user/profile">
             <el-icon><user /></el-icon>
@@ -245,6 +249,10 @@ onUnmounted(() => {
   border-right: none;
 }
 
+.sidebar-menu .el-menu-item {
+  position: relative;
+}
+
 .app-content {
   flex: 1;
   padding: 20px;
@@ -252,7 +260,13 @@ onUnmounted(() => {
   background-color: #f0f2f5;
 }
 
-.unread-badge {
-  margin-top: -2px;
+.message-badge {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
 }
+
+/* 移除旧的未读角标上移样式，避免在不同分辨率错位 */
+/* .unread-badge { margin-top: -2px; } */
 </style>

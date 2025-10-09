@@ -44,3 +44,35 @@ export function getAdminDashboard() {
     method: 'get'
   });
 }
+
+// 获取图表数据
+export function getChartData() {
+  return request({
+    url: '/item/stats/all',
+    method: 'get'
+  });
+}
+
+// 获取信息类型统计
+export function getItemTypeStats() {
+  return request({
+    url: '/item/stats/type',
+    method: 'get'
+  });
+}
+
+// 获取信息状态统计
+export function getItemStatusStats() {
+  return request({
+    url: '/item/stats/status',
+    method: 'get'
+  });
+}
+
+// 获取每日信息统计
+export function getItemDailyStats() {
+  return request({
+    url: '/item/stats/daily',
+    method: 'get'
+  });
+}

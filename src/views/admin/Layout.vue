@@ -38,6 +38,11 @@
           <el-menu-item index="/admin/item/audit">
             <el-icon><document-checked /></el-icon>
             <span>信息审核</span>
+            <el-badge :value="pendingCount" :max="99" v-if="pendingCount > 0" class="audit-badge" />
+          </el-menu-item>
+          <el-menu-item index="/admin/item/list">
+            <el-icon><document /></el-icon>
+            <span>发布信息列表</span>
           </el-menu-item>
           <el-menu-item index="/admin/user/manage">
             <el-icon><user /></el-icon>
@@ -55,15 +60,18 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { ArrowDown, Odometer, DocumentChecked, User } from '@element-plus/icons-vue';
+import { ArrowDown, Odometer, DocumentChecked, Document, User } from '@element-plus/icons-vue';
 import { getAdminInfo } from '../../api/admin';
+import { getPendingItemList } from '../../api/item';
+import eventBus from '../../utils/eventBus';
 
 const router = useRouter();
 const route = useRoute();
 const adminInfo = ref(null);
+const pendingCount = ref(0);
 
 // 计算当前激活的菜单
 const activeMenu = computed(() => {
@@ -77,6 +85,16 @@ const fetchAdminInfo = async () => {
     adminInfo.value = res.data;
   } catch (error) {
     console.error('获取管理员信息失败:', error);
+  }
+};
+
+// 获取待审核信息数量
+const fetchPendingCount = async () => {
+  try {
+    const res = await getPendingItemList({ pageNum: 1, pageSize: 1 });
+    pendingCount.value = res.data.total || 0;
+  } catch (error) {
+    console.error('获取待审核信息数量失败:', error);
   }
 };
 
@@ -100,8 +118,18 @@ const handleCommand = (command) => {
   }
 };
 
+const onAdminPendingChanged = () => {
+  fetchPendingCount();
+};
+
 onMounted(() => {
   fetchAdminInfo();
+  fetchPendingCount();
+  eventBus.on('admin-pending-changed', onAdminPendingChanged);
+});
+
+onUnmounted(() => {
+  eventBus.off('admin-pending-changed', onAdminPendingChanged);
 });
 </script>
 
@@ -155,6 +183,36 @@ onMounted(() => {
 .sidebar-menu {
   height: 100%;
   border-right: none;
+}
+
+.sidebar-menu .el-menu-item {
+  height: 50px;
+  line-height: 50px;
+  position: relative;
+}
+
+.sidebar-menu .el-menu-item:hover {
+  background-color: #263445;
+}
+
+.sidebar-menu .el-menu-item.is-active {
+  background-color: #409EFF !important;
+  color: #ffffff !important;
+}
+
+.sidebar-menu .el-menu-item.is-active span {
+  color: #ffffff !important;
+}
+
+.sidebar-menu .el-menu-item.is-active .el-icon {
+  color: #ffffff !important;
+}
+
+.audit-badge {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
 }
 
 .app-content {

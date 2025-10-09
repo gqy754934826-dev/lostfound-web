@@ -70,3 +70,78 @@ export function getPendingItemList(params) {
     params
   });
 }
+
+// 删除信息
+export function deleteItemById(itemId) {
+  return request({
+    url: `/item/delete/${itemId}`,
+    method: 'delete'
+  });
+}
+
+// 更新信息
+export function updateItem(data) {
+  return request({
+    url: '/item/update',
+    method: 'put',
+    data
+  })
+}
+
+// 标记信息为已完成
+export function completeItem(itemId) {
+  return request({
+    url: `/item/complete/${itemId}`,
+    method: 'put'
+  });
+}
+
+// 获取用户信息类型统计
+export function getUserItemTypeStats() {
+  return request({
+    url: '/item/user/stats/type',
+    method: 'get'
+  });
+}
+
+// 获取用户信息每日统计
+export function getUserItemDailyStats() {
+  return request({
+    url: '/item/user/stats/daily',
+    method: 'get'
+  });
+}
+
+// 获取用户信息状态统计
+export function getUserItemStatusStats() {
+  return request({
+    url: '/item/user/stats/status',
+    method: 'get'
+  });
+}
+
+// 获取各类型信息统计数据
+export function getItemTypeStats() {
+  return request({
+    url: '/item/stats/type',
+    method: 'get'
+  });
+}
+
+// 获取各状态信息统计数据
+export function getItemStatusStats() {
+  return request({
+    url: '/item/stats/status',
+    method: 'get'
+  });
+}
+
+// 获取最近7天每天的信息发布数量
+export function getItemDailyStats() {
+  return request({
+    url: '/item/stats/daily',
+    method: 'get'
+  });
+}
+
+// 用户统计数据已在上面定义

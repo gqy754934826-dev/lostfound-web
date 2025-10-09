@@ -30,7 +30,24 @@
           </template>
         </el-table-column>
         <el-table-column prop="location" label="地点" width="150" />
-        <el-table-column prop="createTime" label="发布时间" width="180" />
+        <el-table-column prop="username" label="发布者" width="100" />
+        <el-table-column label="图片" width="100">
+          <template #default="scope">
+            <el-image 
+              v-if="scope.row.imageUrl" 
+              :src="scope.row.imageUrl" 
+              :preview-src-list="[scope.row.imageUrl]" 
+              fit="cover"
+              class="item-image"
+            />
+            <span v-else>无图片</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="createTime" label="发布时间" width="180">
+          <template #default="scope">
+            {{ formatDateTime(scope.row.createTime) }}
+          </template>
+        </el-table-column>
         <el-table-column label="操作">
           <template #default="scope">
             <el-button size="small" @click="viewItemDetail(scope.row.id)">查看详情</el-button>
@@ -62,6 +79,7 @@ import { ref, reactive, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { getPendingItemList, updateItemStatus } from '../../api/item';
+import { formatDateTime } from '../../utils/dateUtils';
 
 const router = useRouter();
 const loading = ref(false);
@@ -98,59 +116,48 @@ const handleQuery = () => {
 // 重置查询
 const resetQuery = () => {
   queryParams.type = '';
-  queryParams.pageNum = 1;
-  fetchPendingItems();
+  handleQuery();
 };
 
-// 处理每页条数变化
-const handleSizeChange = (val) => {
-  queryParams.pageSize = val;
-  fetchPendingItems();
-};
-
-// 处理页码变化
-const handleCurrentChange = (val) => {
-  queryParams.pageNum = val;
-  fetchPendingItems();
-};
-
-// 查看信息详情
+// 查看详情
 const viewItemDetail = (id) => {
   router.push(`/admin/item/detail/${id}`);
 };
 
-// 通过信息
-const approveItem = (id) => {
-  ElMessageBox.confirm('确定要通过该信息吗?', '提示', {
-    confirmButtonText: '确定',
-    cancelButtonText: '取消',
-    type: 'warning'
-  }).then(async () => {
-    try {
-      await updateItemStatus(id, 1);
-      ElMessage.success('审核通过成功');
-      fetchPendingItems();
-    } catch (error) {
-      console.error('操作失败:', error);
-    }
-  }).catch(() => {});
+// 通过审核
+const approveItem = async (id) => {
+  try {
+    await updateItemStatus(id, 1);
+    ElMessage.success('审核通过成功');
+    fetchPendingItems();
+  } catch (error) {
+    console.error('操作失败:', error);
+    ElMessage.error('操作失败');
+  }
 };
 
-// 拒绝信息
-const rejectItem = (id) => {
-  ElMessageBox.confirm('确定要拒绝该信息吗?', '提示', {
-    confirmButtonText: '确定',
-    cancelButtonText: '取消',
-    type: 'warning'
-  }).then(async () => {
-    try {
-      await updateItemStatus(id, 2);
-      ElMessage.success('审核拒绝成功');
-      fetchPendingItems();
-    } catch (error) {
-      console.error('操作失败:', error);
-    }
-  }).catch(() => {});
+// 拒绝审核
+const rejectItem = async (id) => {
+  try {
+    await updateItemStatus(id, 2);
+    ElMessage.success('审核拒绝成功');
+    fetchPendingItems();
+  } catch (error) {
+    console.error('操作失败:', error);
+    ElMessage.error('操作失败');
+  }
+};
+
+// 处理分页大小变化
+const handleSizeChange = (size) => {
+  queryParams.pageSize = size;
+  fetchPendingItems();
+};
+
+// 处理页码变化
+const handleCurrentChange = (page) => {
+  queryParams.pageNum = page;
+  fetchPendingItems();
 };
 
 onMounted(() => {
@@ -187,5 +194,13 @@ onMounted(() => {
   margin-top: 20px;
   display: flex;
   justify-content: center;
+}
+
+.item-image {
+  width: 60px;
+  height: 60px;
+  border-radius: 4px;
+  object-fit: cover;
+  cursor: pointer;
 }
 </style>
