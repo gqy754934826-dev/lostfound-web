@@ -6,7 +6,7 @@
     <el-card class="filter-card">
       <el-form :inline="true" :model="queryParams" class="filter-form">
         <el-form-item label="类型">
-          <el-select v-model="queryParams.type" placeholder="全部类型" clearable>
+          <el-select v-model="queryParams.type" placeholder="全部类型" clearable style="width: 200px;">
             <el-option label="失物信息" value="lost" />
             <el-option label="招领信息" value="claim" />
           </el-select>
@@ -80,6 +80,7 @@ import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { getPendingItemList, updateItemStatus } from '../../api/item';
 import { formatDateTime } from '../../utils/dateUtils';
+import eventBus from '../../utils/eventBus';
 
 const router = useRouter();
 const loading = ref(false);
@@ -130,6 +131,7 @@ const approveItem = async (id) => {
     await updateItemStatus(id, 1);
     ElMessage.success('审核通过成功');
     fetchPendingItems();
+    eventBus.emit('admin-pending-changed'); // 触发事件更新小红点
   } catch (error) {
     console.error('操作失败:', error);
     ElMessage.error('操作失败');
@@ -142,6 +144,7 @@ const rejectItem = async (id) => {
     await updateItemStatus(id, 2);
     ElMessage.success('审核拒绝成功');
     fetchPendingItems();
+    eventBus.emit('admin-pending-changed'); // 触发事件更新小红点
   } catch (error) {
     console.error('操作失败:', error);
     ElMessage.error('操作失败');

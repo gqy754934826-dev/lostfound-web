@@ -60,13 +60,14 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { ArrowDown, Odometer, DocumentChecked, Document, User } from '@element-plus/icons-vue';
-import { getAdminInfo } from '../../api/admin';
+import { getAdminInfo, logout } from '../../api/admin';
 import { getPendingItemList } from '../../api/item';
 import eventBus from '../../utils/eventBus';
+import adminWebSocketClient from '../../utils/adminWebsocket';
 
 const router = useRouter();
 const route = useRoute();
@@ -91,8 +92,11 @@ const fetchAdminInfo = async () => {
 // 获取待审核信息数量
 const fetchPendingCount = async () => {
   try {
-    const res = await getPendingItemList({ pageNum: 1, pageSize: 1 });
+    const res = await getPendingItemList({ pageNum: 1, pageSize: 1, _t: Date.now() }); // 添加时间戳防止缓存
     pendingCount.value = res.data.total || 0;
+    console.log('[Admin Layout] 更新待审核数量:', pendingCount.value);
+    // 强制Vue更新DOM，确保徽章显示最新数量
+    await nextTick();
   } catch (error) {
     console.error('获取待审核信息数量失败:', error);
   }
@@ -105,15 +109,24 @@ const handleCommand = (command) => {
       confirmButtonText: '确定',
       cancelButtonText: '取消',
       type: 'warning'
-    }).then(() => {
-      // 清除token和用户信息
-      localStorage.removeItem('token');
-      localStorage.removeItem('role');
-      
-      // 跳转到登录页
-      router.push('/admin/login');
-      
-      ElMessage.success('退出登录成功');
+    }).then(async () => {
+      try {
+        await logout(); // 调用后端退出登录接口
+        // 清除token和用户信息
+        localStorage.removeItem('token');
+        localStorage.removeItem('role');
+        
+        // 关闭WebSocket连接
+        adminWebSocketClient.close();
+        
+        // 跳转到登录页
+        router.push('/admin/login');
+        
+        ElMessage.success('退出登录成功');
+      } catch (error) {
+        console.error('退出登录失败:', error);
+        ElMessage.error('退出登录失败，请重试');
+      }
     }).catch(() => {});
   }
 };
@@ -122,14 +135,38 @@ const onAdminPendingChanged = () => {
   fetchPendingCount();
 };
 
-onMounted(() => {
-  fetchAdminInfo();
-  fetchPendingCount();
+onMounted(async () => {
+  await fetchAdminInfo();
+  await fetchPendingCount();
+  
+  // 在获取管理员信息后初始化WebSocket
+  if (adminInfo.value && adminInfo.value.id) {
+    adminWebSocketClient.connect(adminInfo.value.id);
+  }
+  
+  // 监听事件
   eventBus.on('admin-pending-changed', onAdminPendingChanged);
+  eventBus.on('new-pending-item', () => {
+    console.log('[Admin Layout] 收到 new-pending-item 事件');
+    fetchPendingCount();
+    ElMessage.info('有新的待审核信息');
+  });
+  eventBus.on('audit-notification', () => {
+    console.log('[Admin Layout] 收到 audit-notification 事件');
+    fetchPendingCount();
+  });
+  eventBus.on('item-updated', () => {
+    console.log('[Admin Layout] 收到 item-updated 事件');
+    fetchPendingCount();
+  });
 });
 
 onUnmounted(() => {
   eventBus.off('admin-pending-changed', onAdminPendingChanged);
+  eventBus.off('new-pending-item');
+  eventBus.off('audit-notification');
+  eventBus.off('item-updated');
+  adminWebSocketClient.close(); // 组件销毁时关闭WebSocket
 });
 </script>
 

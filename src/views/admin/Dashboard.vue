@@ -123,7 +123,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, nextTick } from 'vue';
+import { ref, onMounted, onUnmounted, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import { User, CircleClose, Timer, DataLine } from '@element-plus/icons-vue';
@@ -138,6 +138,8 @@ import {
   GridComponent
 } from 'echarts/components';
 import { CanvasRenderer } from 'echarts/renderers';
+import eventBus from '../../utils/eventBus';
+import webSocketClient from '../../utils/websocket';
 
 // 注册必须的组件
 echarts.use([
@@ -155,6 +157,7 @@ const loading = ref(false);
 const dashboardData = ref({});
 const pendingItems = ref([]);
 const chartData = ref({});
+let socket; // WebSocket 连接实例
 
 // 图表引用
 const typeChartRef = ref(null);
@@ -163,13 +166,100 @@ const dailyChartRef = ref(null);
 
 // 获取仪表盘数据
 const fetchDashboardData = async () => {
+  console.log('[Dashboard] 开始获取仪表盘数据');
   try {
+    loading.value = true;
     const res = await getAdminDashboard();
+    console.log('[Dashboard] 获取仪表盘数据成功:', res.data);
     dashboardData.value = res.data;
+    
+    // 触发事件总线通知其他组件
+    eventBus.emit('dashboard-data-updated', res.data);
   } catch (error) {
-    console.error('获取仪表盘数据失败:', error);
+    console.error('[Dashboard] 获取仪表盘数据失败:', error);
+  } finally {
+    loading.value = false;
   }
 };
+
+// WebSocket 消息处理
+const handleWebSocketMessage = (event) => {
+  const data = JSON.parse(event.data);
+
+  // 根据事件类型处理消息
+  switch (data.event) {
+    case 'new-pending-item':
+      fetchDashboardData();
+      ElMessage.info('有新的待审核信息');
+      break;
+    case 'audit-notification':
+      fetchDashboardData();
+      ElMessage.info('信息状态已更新');
+      break;
+    case 'item-updated':
+      fetchDashboardData();
+      ElMessage.info('信息已被修改');
+      break;
+    default:
+      console.warn('未知的 WebSocket 消息事件:', data.event);
+  }
+};
+
+onMounted(() => {
+  console.log('[Dashboard Admin] 组件挂载');
+  fetchDashboardData();
+  fetchPendingItems();
+  fetchChartData();
+
+  // 使用 WebSocketClient 而不是直接创建 WebSocket 连接
+  // 监听心跳事件触发数据更新
+  console.log('[Dashboard Admin] 注册 update-dashboard-data 事件监听');
+  eventBus.on('update-dashboard-data', () => {
+    console.log('[Dashboard Admin] 收到 update-dashboard-data 事件，刷新数据');
+    fetchDashboardData();
+    fetchPendingItems();
+  });
+  
+  // 监听新待审核信息事件
+  eventBus.on('new-pending-item', (data) => {
+    console.log('[Dashboard Admin] 收到 new-pending-item 事件，刷新数据');
+    fetchDashboardData();
+    fetchPendingItems();
+    ElMessage.info('有新的待审核信息');
+  });
+  
+  // 监听信息状态更新事件
+  eventBus.on('item-status-updated', (data) => {
+    console.log('[Dashboard Admin] 收到 item-status-updated 事件，刷新数据');
+    fetchDashboardData();
+    fetchPendingItems();
+    ElMessage.info('信息状态已更新');
+  });
+  
+  // 监听信息修改事件
+  eventBus.on('item-updated', (data) => {
+    console.log('[Dashboard Admin] 收到 item-updated 事件，刷新数据');
+    fetchDashboardData();
+    fetchPendingItems();
+    ElMessage.info('信息已被修改');
+  });
+  
+  // 监听管理员待审核变更事件
+  eventBus.on('admin-pending-changed', () => {
+    console.log('[Dashboard Admin] 收到 admin-pending-changed 事件，刷新数据');
+    fetchDashboardData();
+    fetchPendingItems();
+  });
+});
+
+onUnmounted(() => {
+  // 移除事件监听
+  eventBus.off('update-dashboard-data', fetchDashboardData);
+  eventBus.off('new-pending-item');
+  eventBus.off('item-status-updated');
+  eventBus.off('item-updated');
+  eventBus.off('admin-pending-changed');
+});
 
 // 获取图表数据
 const fetchChartData = async () => {
@@ -199,7 +289,8 @@ const fetchChartData = async () => {
       processedStatusData = [
         { name: '待审核', value: 0 },
         { name: '已通过', value: 0 },
-        { name: '已拒绝', value: 0 }
+        { name: '已拒绝', value: 0 },
+        { name: '已解决', value: 0 }
       ];
     }
     
@@ -245,11 +336,11 @@ const fetchChartData = async () => {
       }
     };
     
-    console.log('管理员端每日统计数据:', chartData.value.dailyData);
+
     
     // 确保数据加载完成后再初始化图表
     nextTick(() => {
-      console.log('初始化管理端图表', chartData.value);
+
       initCharts();
     });
   } catch (error) {
@@ -309,7 +400,7 @@ const initCharts = () => {
         orient: 'horizontal',
         bottom: 0,
         left: 'center',
-        data: ['已解决', '待审核', '已拒绝']
+        data: ['已完成', '待审核', '已拒绝','已通过']
       },
       series: [
         {
@@ -372,10 +463,12 @@ const initCharts = () => {
 
 // 获取待审核信息列表
 const fetchPendingItems = async () => {
+  console.log('[Dashboard] 开始获取待审核信息列表');
   loading.value = true;
   try {
-    const res = await getPendingItemList({ pageNum: 1, pageSize: 5 });
+    const res = await getPendingItemList({ pageNum: 1, pageSize: 5, _t: Date.now() });
     pendingItems.value = res.data.list;
+    console.log('[Dashboard] 获取待审核信息列表成功:', res.data.list.length);
   } catch (error) {
     console.error('获取待审核信息列表失败:', error);
   } finally {
@@ -396,6 +489,7 @@ const approveItem = async (id) => {
     fetchPendingItems();
     fetchDashboardData();
     fetchChartData();
+    eventBus.emit('admin-pending-changed'); // 触发事件更新小红点
   } catch (error) {
     console.error('操作失败:', error);
   }
@@ -409,6 +503,7 @@ const rejectItem = async (id) => {
     fetchPendingItems();
     fetchDashboardData();
     fetchChartData();
+    eventBus.emit('admin-pending-changed'); // 触发事件更新小红点
   } catch (error) {
     console.error('操作失败:', error);
   }
@@ -428,11 +523,23 @@ onMounted(() => {
   fetchDashboardData();
   fetchPendingItems();
   fetchChartData();
+
+  // 监听新信息发布事件
+  eventBus.on('new-item-published', handleNewItemPublished);
+
   // 确保图表初始化
   nextTick(() => {
     initCharts();
   });
 });
+
+// 处理新信息发布事件
+const handleNewItemPublished = () => {
+  ElMessage.info('有新的信息发布，正在更新数据...');
+  fetchDashboardData();
+  fetchPendingItems();
+  fetchChartData();
+};
 </script>
 
 <style scoped>

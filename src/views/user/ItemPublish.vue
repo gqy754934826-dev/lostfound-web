@@ -66,6 +66,7 @@ import { useRouter, useRoute } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
 import { publishItem, uploadItemImage } from '../../api/item';
+import eventBus from '../../utils/eventBus';
 
 const router = useRouter();
 const route = useRoute();
@@ -140,6 +141,7 @@ const handlePublish = () => {
       try {
         await publishItem(itemForm);
         ElMessage.success('发布成功，等待审核');
+        eventBus.emit('admin-pending-changed'); // Emit event after successful publication
         router.push('/user/dashboard');
       } catch (error) {
         console.error('发布失败:', error);

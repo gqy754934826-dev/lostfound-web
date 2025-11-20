@@ -73,7 +73,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { ArrowDown, Odometer, Document, Plus, ChatDotRound, User } from '@element-plus/icons-vue';
-import { getUserInfo } from '../../api/user';
+import { getUserInfo, logout } from '../../api/user';
 import { getUserDashboard } from '../../api/user';
 import eventBus from '../../utils/eventBus';
 import webSocketClient from '../../utils/websocket';
@@ -125,21 +125,31 @@ const cleanupEventListeners = () => {
 
 // 处理新消息
 const handleNewMessage = (message) => {
-  // 收到新消息时更新未读消息数量
-  fetchUnreadCount();
+  console.log('[Layout] 收到新消息:', message);
   
-  // 可以添加消息通知
-  ElMessage({
-    message: `收到来自 ${message.fromUserName || '用户'} 的新消息`,
-    type: 'info',
-    duration: 3000
-  });
+  // ✅ 直接更新未读数量
+  if (message.unreadCount !== undefined) {
+    unreadCount.value = message.unreadCount;
+    console.log('[Layout] 立即更新未读数量:', message.unreadCount);
+  }
+  
+  // ✅ 只有当前用户是接收方时才显示消息通知
+  // 如果当前用户是发送方(fromUser)，则不显示提示
+  if (userInfo.value && message.toUser === userInfo.value.id) {
+    ElMessage({
+      message: `收到来自 ${message.fromUserName || message.fromUsername || '用户'} 的新消息`,
+      type: 'info',
+      duration: 3000
+    });
+  }
 };
 
-// 处理未读消息数量更新
+// 处理未读消息数量更新（立即更新，无防抖）
 const handleUnreadCountUpdate = (count) => {
   console.log('收到WebSocket未读消息数量更新:', count);
+  // ✅ 直接更新，无延迟
   unreadCount.value = count;
+  console.log('[Layout] 立即更新未读数量:', count);
 };
 
 // 处理下拉菜单命令
@@ -151,15 +161,21 @@ const handleCommand = (command) => {
       confirmButtonText: '确定',
       cancelButtonText: '取消',
       type: 'warning'
-    }).then(() => {
-      // 清除token和用户信息
-      localStorage.removeItem('token');
-      localStorage.removeItem('role');
-      
-      // 跳转到登录页
-      router.push('/user/login');
-      
-      ElMessage.success('退出登录成功');
+    }).then(async () => {
+      try {
+        await logout(); // 调用后端退出登录接口
+        // 清除token和用户信息
+        localStorage.removeItem('token');
+        localStorage.removeItem('role');
+        
+        // 跳转到登录页
+        router.push('/user/login');
+        
+        ElMessage.success('退出登录成功');
+      } catch (error) {
+        console.error('退出登录失败:', error);
+        ElMessage.error('退出登录失败，请重试');
+      }
     }).catch(() => {});
   }
 };
@@ -179,10 +195,14 @@ onMounted(() => {
   fetchUnreadCount();
   setupEventListeners();
   
-  // 定时刷新未读消息数量（作为备用机制）
+  // 定时刷新未读消息数量（作为备用机制，仅在WebSocket未连接时使用）
   const timer = setInterval(() => {
-    fetchUnreadCount();
-  }, 10000); // 每10秒刷新一次
+    // 只有在WebSocket未连接时才进行轮询
+    if (!webSocketClient.isConnected) {
+      console.log('[Layout] WebSocket未连接，使用轮询更新未读数量');
+      fetchUnreadCount();
+    }
+  }, 60000); // 每60秒检查一次
   
   // 组件卸载时清除定时器
   return () => {

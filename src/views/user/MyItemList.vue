@@ -9,7 +9,7 @@
           <el-input v-model="queryParams.title" placeholder="请输入标题关键词" clearable />
         </el-form-item>
         <el-form-item label="类型">
-          <el-select v-model="queryParams.type" placeholder="全部类型" clearable>
+          <el-select v-model="queryParams.type" placeholder="全部类型" clearable style="width: 100px;">
             <el-option label="失物信息" value="lost" />
             <el-option label="招领信息" value="claim" />
           </el-select>
@@ -18,7 +18,7 @@
           <el-input v-model="queryParams.location" placeholder="请输入地点关键词" clearable />
         </el-form-item>
         <el-form-item label="状态">
-          <el-select v-model="queryParams.status" placeholder="全部状态" clearable>
+          <el-select v-model="queryParams.status" placeholder="全部状态" clearable style="width: 200px;">
             <el-option label="待审核" :value="0" />
             <el-option label="已通过" :value="1" />
             <el-option label="已拒绝" :value="2" />
@@ -36,7 +36,7 @@
     <el-card class="item-card">
       <el-table :data="itemList" style="width: 100%" v-loading="loading">
         <el-table-column prop="title" label="标题" width="180" />
-        <el-table-column prop="type" label="类型" width="80">
+        <el-table-column prop="type" label="类型" width="80" >
           <template #default="scope">
             <el-tag :type="scope.row.type === 'lost' ? 'danger' : 'success'">
               {{ scope.row.type === 'lost' ? '失物' : '招领' }}

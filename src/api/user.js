@@ -69,3 +69,11 @@ export function getUserDashboard() {
     method: 'get'
   });
 }
+
+// 用户退出登录
+export function logout() {
+  return request({
+    url: '/user/logout',
+    method: 'post'
+  });
+}

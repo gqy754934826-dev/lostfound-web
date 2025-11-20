@@ -9,19 +9,19 @@
           <el-input v-model="queryParams.title" placeholder="请输入标题关键词" clearable />
         </el-form-item>
         <el-form-item label="类型">
-          <el-select v-model="queryParams.type" placeholder="全部类型" clearable>
-            <el-option label="失物信息" value="lost" />
-            <el-option label="招领信息" value="claim" />
+          <el-select v-model="queryParams.type" placeholder="全部类型" clearable style="width: 100px;">
+            <el-option label="失物信息" :value="'lost'" />
+            <el-option label="招领信息" :value="'claim'" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="状态">
+          <el-select v-model="queryParams.status" placeholder="全部状态" clearable style="width: 200px;">
+            <el-option label="已通过" :value="1" />
+            <el-option label="已解决" :value="3" />
           </el-select>
         </el-form-item>
         <el-form-item label="地点">
           <el-input v-model="queryParams.location" placeholder="请输入地点关键词" clearable />
-        </el-form-item>
-        <el-form-item label="状态">
-          <el-select v-model="queryParams.status" placeholder="全部状态" clearable>
-            <el-option label="已通过" :value="1" />
-            <el-option label="已完成" :value="3" />
-          </el-select>
         </el-form-item>
         <el-form-item>
           <el-button type="primary" @click="handleQuery">查询</el-button>
@@ -131,7 +131,7 @@ const getStatusText = (status) => {
     case 0: return '待审核';
     case 1: return '已通过';
     case 2: return '已拒绝';
-    case 3: return '已完成';
+    case 3: return '已解决';
     default: return '未知';
   }
 };
@@ -197,7 +197,11 @@ onMounted(() => {
   if (userId) {
     currentUserId.value = parseInt(userId);
   }
-  
+
+  // 设置默认值以确保选择框显示正确
+  queryParams.type = 'lost'; // 默认显示失物信息
+  queryParams.status = 1; // 默认显示已通过状态
+
   fetchItemList();
 });
 </script>

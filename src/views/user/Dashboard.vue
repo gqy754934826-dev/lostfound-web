@@ -196,7 +196,7 @@ const initCharts = async () => {
       }
     }
     
-    console.log('类型统计数据:', processedTypeData);
+    // console.log('类型统计数据:', processedTypeData);
     
     // 获取状态统计数据
     const statusRes = await getUserItemStatusStats();
@@ -228,7 +228,7 @@ const initCharts = async () => {
       }
     }
     
-    console.log('状态统计数据:', processedStatusData);
+    // console.log('状态统计数据:', processedStatusData);
     
     // 获取每日统计数据（显示所有人的数据）
     const dailyRes = await getItemDailyStats();
@@ -274,9 +274,9 @@ const initCharts = async () => {
       counts: counts
     };
     
-    console.log('每日统计数据处理完成:', processedDailyData);
+    // console.log('每日统计数据处理完成:', processedDailyData);
     
-    console.log('用户端每日统计数据:', processedDailyData);
+    // console.log('用户端每日统计数据:', processedDailyData);
     
     // 在图表初始化时使用处理后的数据
     
@@ -578,11 +578,40 @@ const goToChat = () => {
   router.push('/user/chat');
 };
 
+onMounted(() => {
+  fetchDashboardData();
+  fetchMyItems();
+  
+  // 设置事件监听
+  setupEventListeners();
+  
+  // 确保图表初始化
+  nextTick(() => {
+    initCharts();
+  });
+});
+
+onUnmounted(() => {
+  // 清除事件监听
+  cleanupEventListeners();
+});
+
 // 监听事件
 const setupEventListeners = () => {
   eventBus.on('new-message', handleNewMessage);
   eventBus.on('update-unread-count', fetchDashboardData);
   eventBus.on('unread-count-update', handleUnreadCountUpdate);
+  eventBus.on('update-dashboard-data', fetchDashboardData);
+  eventBus.on('item-updated', () => {
+    fetchDashboardData();
+    fetchMyItems();
+    ElMessage.info('信息已被修改');
+  });
+  eventBus.on('item-status-updated', () => {
+    fetchDashboardData();
+    fetchMyItems();
+    ElMessage.info('信息状态已更新');
+  });
 };
 
 // 清除事件监听
@@ -590,18 +619,26 @@ const cleanupEventListeners = () => {
   eventBus.off('new-message', handleNewMessage);
   eventBus.off('update-unread-count', fetchDashboardData);
   eventBus.off('unread-count-update', handleUnreadCountUpdate);
+  eventBus.off('update-dashboard-data', fetchDashboardData);
+  eventBus.off('item-updated');
+  eventBus.off('item-status-updated');
 };
 
 // 处理新消息
 const handleNewMessage = () => {
   // 收到新消息时更新仪表盘数据
   fetchDashboardData();
+  ElMessage.info('您有新的消息');
 };
 
-// 处理未读消息数量更新
+// 处理未读消息数量更新（立即更新，无防抖）
 const handleUnreadCountUpdate = (count) => {
   console.log('Dashboard收到未读消息数量更新:', count);
-  dashboardData.value.unreadCount = count;
+  // ✅ 直接更新，无延迟
+  if (dashboardData.value) {
+    dashboardData.value.unreadCount = count;
+    console.log('[Dashboard] 立即更新未读数量:', count);
+  }
 };
 
 // 初始化图表（管理员视图）

@@ -100,8 +100,28 @@ const userId = ref(null);
 const userInfo = ref({});
 const defaultAvatar = 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png';
 
-// 获取聊天用户列表
-const fetchChatUsers = async () => {
+// 防抖定时器
+let fetchChatUsersTimer = null;
+let fetchChatHistoryTimer = null;
+
+// 获取聊天用户列表（带防抖）
+const fetchChatUsers = async (immediate = false) => {
+  // 如果不是立即执行，使用防抖
+  if (!immediate) {
+    if (fetchChatUsersTimer) {
+      clearTimeout(fetchChatUsersTimer);
+    }
+    fetchChatUsersTimer = setTimeout(() => {
+      fetchChatUsersNow();
+    }, 500); // 500ms防抖
+    return;
+  }
+  
+  await fetchChatUsersNow();
+};
+
+// 实际获取聊天用户列表的函数
+const fetchChatUsersNow = async () => {
   try {
     const res = await getChatUserListWithDetail();
     if (res && res.data) {
@@ -165,7 +185,7 @@ const fetchUserInfo = async () => {
 // 选择聊天用户
 const selectChatUser = async (user) => {
   currentChatUser.value = user;
-  await fetchChatHistory();
+  await fetchChatHistory(true); // 立即获取聊天记录
   
   // 当用户点击聊天框时，将该用户发送的消息标记为已读
   if (user && user.userId) {
@@ -185,8 +205,8 @@ const selectChatUser = async (user) => {
       console.log('选择聊天用户后标记消息为已读');
       // 触发事件，通知Layout组件更新未读消息数量
       eventBus.emit('update-unread-count');
-      // 刷新聊天用户列表，更新未读消息数量
-      fetchChatUsers();
+      // 刷新聊天用户列表（使用防抖）
+      fetchChatUsers(); // 按照规范使用防抖
     } catch (error) {
       console.error('标记消息为已读失败:', error);
       ElMessage.error('标记消息为已读失败: ' + (error.message || '未知错误'));
@@ -194,8 +214,26 @@ const selectChatUser = async (user) => {
   }
 };
 
-// 获取聊天记录
-const fetchChatHistory = async () => {
+// 获取聊天记录（带防抖）
+const fetchChatHistory = async (immediate = false) => {
+  if (!currentChatUser.value || !userId.value) return;
+  
+  // 如果不是立即执行，使用防抖
+  if (!immediate) {
+    if (fetchChatHistoryTimer) {
+      clearTimeout(fetchChatHistoryTimer);
+    }
+    fetchChatHistoryTimer = setTimeout(() => {
+      fetchChatHistoryNow();
+    }, 300); // 300ms防抖
+    return;
+  }
+  
+  await fetchChatHistoryNow();
+};
+
+// 实际获取聊天记录的函数
+const fetchChatHistoryNow = async () => {
   if (!currentChatUser.value || !userId.value) return;
   
   try {
@@ -251,16 +289,14 @@ const sendMessage = async () => {
     // 清空输入框
     messageContent.value = '';
     
-    // 重新获取聊天记录
-    await fetchChatHistory();
+    // 立即重新获取聊天记录
+    await fetchChatHistory(true);
     
     // 用户发送消息时，标记当前对话为已读
-    // 因为发送消息表示用户已经查看了聊天内容
-    // 这里保留标记为已读的逻辑，因为用户发送消息时一定已经查看了聊天内容
-    await markMessageAsRead(toUserId); // 使用已转换的数字类型toUserId
+    await markMessageAsRead(toUserId);
     eventBus.emit('update-unread-count');
-    // 刷新聊天用户列表，更新未读消息数量和最后一条消息
-    fetchChatUsers();
+    // 刷新聊天用户列表（使用防抖）
+    fetchChatUsers(); // 按照规范使用防抖
   } catch (error) {
     console.error('发送消息失败:', error);
     ElMessage.error('发送消息失败: ' + (error.message || '未知错误'));
@@ -346,15 +382,16 @@ const cleanupEventListeners = () => {
 
 // 处理新消息
 const handleNewMessage = (message) => {
-  // 如果当前正在与发送消息的用户聊天，则刷新聊天记录
-  if (currentChatUser.value && message.fromUser === currentChatUser.value.userId) {
-    fetchChatHistory();
-    // 不再自动标记为已读，改为等待用户交互后标记
-    // 用户需要查看消息后才会标记为已读
-    // 移除自动调用markMessageAsRead的逻辑，用户需要与消息交互后才会标记为已读
-  } 
-  // 无论是否是当前聊天的用户，都更新聊天用户列表以显示最新消息和未读数量
-  fetchChatUsers();
+  console.log('收到新消息:', message);
+  
+  // 如果当前正在与发送消息的用户或接收消息的用户聊天，则立即刷新聊天记录
+  if (currentChatUser.value && 
+      (message.fromUser === currentChatUser.value.userId || message.toUser === currentChatUser.value.userId)) {
+    fetchChatHistory(true); // 立即刷新当前聊天记录
+  }
+  
+  // 更新聊天用户列表（使用防抖）
+  fetchChatUsers(); // 按照规范使用防抖
 };
 
 // 处理已读状态更新
@@ -363,16 +400,16 @@ const handleReadStatusUpdate = (data) => {
   // 如果当前正在与相关用户聊天，则刷新聊天记录以更新已读状态
   if (currentChatUser.value && 
       (data.fromUser === currentChatUser.value.userId || data.toUser === currentChatUser.value.userId)) {
-    fetchChatHistory();
+    fetchChatHistory(); // 使用防抖刷新聊天记录
   }
-  // 刷新聊天用户列表，更新未读消息数量
+  // 刷新聊天用户列表，更新未读消息数量（使用防抖）
   fetchChatUsers();
 };
 
 // 处理联系人删除
 const handleContactDeleted = (data) => {
   console.log('收到联系人删除通知:', data);
-  // 刷新聊天用户列表
+  // 刷新聊天用户列表（使用防抖）
   fetchChatUsers();
   
   // 如果当前正在与被删除的联系人聊天，则清空当前聊天
@@ -440,23 +477,29 @@ onMounted(async () => {
     }
   }
   
-  // 定时刷新聊天记录（作为备用机制）
+  // 定时刷新聊天记录（作为备用机制，延长时间间隔）
   const timer = setInterval(() => {
     if (currentChatUser.value) {
-      fetchChatHistory();
+      fetchChatHistory(true); // 立即刷新，不使用防抖
     }
     // 定时刷新聊天用户列表，更新未读消息数量和最后一条消息
-    fetchChatUsers();
-  }, 30000); // 每30秒刷新一次
+    fetchChatUsers(true); // 立即刷新，不使用防抖
+  }, 60000); // 改为每60秒刷新一次，因为已经有WebSocket实时通知
   
   // 组件卸载时清除定时器
   onUnmounted(() => {
     clearInterval(timer);
+    // 清除防抖定时器
+    if (fetchChatUsersTimer) clearTimeout(fetchChatUsersTimer);
+    if (fetchChatHistoryTimer) clearTimeout(fetchChatHistoryTimer);
   });
 });
 
 onUnmounted(() => {
   cleanupEventListeners();
+  // 清除防抖定时器
+  if (fetchChatUsersTimer) clearTimeout(fetchChatUsersTimer);
+  if (fetchChatHistoryTimer) clearTimeout(fetchChatHistoryTimer);
 });
 </script>
 
