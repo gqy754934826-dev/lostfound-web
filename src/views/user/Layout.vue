@@ -32,6 +32,10 @@
           background-color="#304156"
           text-color="#bfcbd9"
           active-text-color="#409EFF">
+          <el-menu-item index="/">
+            <el-icon><house /></el-icon>
+            <span>首页展示</span>
+          </el-menu-item>
           <el-menu-item index="/user/dashboard">
             <el-icon><odometer /></el-icon>
             <span>仪表盘</span>
@@ -72,7 +76,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { ArrowDown, Odometer, Document, Plus, ChatDotRound, User } from '@element-plus/icons-vue';
+import { ArrowDown, Odometer, Document, Plus, ChatDotRound, User, House } from '@element-plus/icons-vue';
 import { getUserInfo, logout } from '../../api/user';
 import { getUserDashboard } from '../../api/user';
 import eventBus from '../../utils/eventBus';

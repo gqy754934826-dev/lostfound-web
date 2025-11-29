@@ -25,11 +25,12 @@ export function uploadItemImage(file) {
 }
 
 // 获取信息列表
-export function getItemList(params) {
+export function getItemList(params, options = {}) {
   return request({
     url: '/item/list',
     method: 'get',
-    params
+    params,
+    ...options
   });
 }
 

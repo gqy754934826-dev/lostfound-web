@@ -20,11 +20,27 @@ import AdminUserManage from '../views/admin/UserManage.vue';
 // 公共页面
 import ItemDetail from '../views/common/ItemDetail.vue';
 import NotFound from '../views/common/NotFound.vue';
+import HomePage from '../views/common/HomePage.vue';
+import About from '../views/common/About.vue';
 
 const routes = [
   {
     path: '/',
-    redirect: '/user/login'
+    name: 'HomePage',
+    component: HomePage,
+    meta: { title: '首页' }
+  },
+  {
+    path: '/home',
+    name: 'Home',
+    component: HomePage,
+    meta: { title: '首页' }
+  },
+  {
+    path: '/about',
+    name: 'About',
+    component: About,
+    meta: { title: '关于我们' }
   },
   {
     path: '/user/login',

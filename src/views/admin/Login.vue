@@ -15,6 +15,25 @@
           <el-input v-model="loginForm.password" prefix-icon="el-icon-lock" type="password" placeholder="密码" show-password />
         </el-form-item>
         
+        <el-form-item prop="captcha">
+          <el-input 
+            v-model="loginForm.captcha" 
+            placeholder="验证码" 
+            class="captcha-input"
+            @keyup.enter="handleLogin"
+          >
+            <template #append>
+              <img 
+                :src="captchaUrl" 
+                @click="refreshCaptcha" 
+                alt="验证码" 
+                class="captcha-image" 
+                title="点击刷新验证码"
+              >
+            </template>
+          </el-input>
+        </el-form-item>
+        
         <el-form-item>
           <el-button type="primary" :loading="loading" class="login-button" @click="handleLogin">登录</el-button>
         </el-form-item>
@@ -28,19 +47,21 @@
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue';
+import { ref, reactive, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
-import { login, getAdminInfo } from '../../api/admin';
+import { login, getAdminInfo, getCaptcha } from '../../api/admin';
 
 const router = useRouter();
 const loginFormRef = ref(null);
 const loading = ref(false);
+const captchaUrl = ref('');
 
 // 登录表单
 const loginForm = reactive({
   username: '',
-  password: ''
+  password: '',
+  captcha: ''
 });
 
 // 表单验证规则
@@ -50,7 +71,21 @@ const loginRules = {
   ],
   password: [
     { required: true, message: '请输入密码', trigger: 'blur' }
+  ],
+  captcha: [
+    { required: true, message: '请输入验证码', trigger: 'blur' }
   ]
+};
+
+// 刷新验证码
+const refreshCaptcha = async () => {
+  try {
+    const res = await getCaptcha();
+    captchaUrl.value = res.data;
+  } catch (error) {
+    console.error('获取验证码失败:', error);
+    ElMessage.error('获取验证码失败');
+  }
 };
 
 // 处理登录
@@ -59,8 +94,8 @@ const handleLogin = () => {
     if (valid) {
       loading.value = true;
       try {
-        // 清除localStorage中的所有数据
-        localStorage.clear();
+        // 不再清除localStorage中的所有数据，避免影响session状态
+        // localStorage.clear();
         
         const res = await login(loginForm);
         // 保存token和角色
@@ -83,6 +118,9 @@ const handleLogin = () => {
         router.push('/admin/dashboard');
       } catch (error) {
         console.error('登录失败:', error);
+        ElMessage.error(error.message || '登录失败');
+        // 登录失败时刷新验证码
+        refreshCaptcha();
       } finally {
         loading.value = false;
       }
@@ -94,6 +132,11 @@ const handleLogin = () => {
 const goToUserLogin = () => {
   router.push('/user/login');
 };
+
+// 组件挂载时获取验证码
+onMounted(() => {
+  refreshCaptcha();
+});
 </script>
 
 <style scoped>
@@ -138,6 +181,16 @@ const goToUserLogin = () => {
   margin-top: 20px;
 }
 
+.captcha-input {
+  width: 100%;
+}
+
+.captcha-image {
+  cursor: pointer;
+  height: 38px;
+  border-radius: 4px;
+}
+
 .login-button {
   width: 100%;
 }
@@ -146,5 +199,12 @@ const goToUserLogin = () => {
   display: flex;
   justify-content: center;
   margin-top: 10px;
+}
+
+@media (max-width: 500px) {
+  .login-card {
+    width: 90%;
+    padding: 20px;
+  }
 }
 </style>

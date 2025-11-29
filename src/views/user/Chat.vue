@@ -90,6 +90,7 @@ import { formatDateTime } from '../../utils/dateUtils';
 
 const route = useRoute();
 const router = useRouter();
+const isLoggedIn = computed(() => !!localStorage.getItem('token'));
 const chatUsers = ref([]);
 const chatMessages = ref([]);
 const currentChatUser = ref(null);
@@ -423,6 +424,12 @@ const handleContactDeleted = (data) => {
 
 
 onMounted(async () => {
+  if (!isLoggedIn.value) {
+    ElMessage.warning('请先登录后再访问消息中心');
+    router.push('/user/login');
+    return;
+  }
+
   // 先获取用户信息，确保userId已设置
   await fetchUserInfo();
   
@@ -468,8 +475,7 @@ onMounted(async () => {
         console.log('找到匹配的用户:', targetUser);
         selectChatUser(targetUser);
       } else {
-        console.log('未找到匹配的用户，可能需要创建新的聊天');
-        ElMessage.warning('无法创建与该用户的聊天，请稍后再试');
+        console.log('未找到匹配的用户，等待系统创建新的聊天会话');
       }
     } catch (error) {
       console.error('创建新聊天失败:', error);

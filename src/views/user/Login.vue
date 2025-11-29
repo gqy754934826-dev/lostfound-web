@@ -8,11 +8,32 @@
       
       <el-form :model="loginForm" :rules="loginRules" ref="loginFormRef" class="login-form">
         <el-form-item prop="username">
-          <el-input v-model="loginForm.username" prefix-icon="el-icon-user" placeholder="用户名" />
+          <el-input v-model="loginForm.username" prefix-icon="el-icon-user" placeholder="用户名" />        
         </el-form-item>
         
         <el-form-item prop="password">
-          <el-input v-model="loginForm.password" prefix-icon="el-icon-lock" type="password" placeholder="密码" show-password />
+          <el-input v-model="loginForm.password" prefix-icon="el-icon-lock" type="password" placeholder="密码" show-password />        
+        </el-form-item>
+        
+        <el-form-item prop="captcha">
+          <el-input 
+            v-model="loginForm.captcha" 
+            placeholder="验证码" 
+            class="captcha-input"
+            @keyup.enter="handleLogin"
+          >
+            <template #append>
+              <div class="captcha-wrapper">
+                <img 
+                  :src="captchaUrl" 
+                  @click="refreshCaptcha" 
+                  alt="验证码" 
+                  class="captcha-image" 
+                  title="点击刷新验证码"
+                >
+              </div>
+            </template>
+          </el-input>
         </el-form-item>
         
         <el-form-item>
@@ -29,19 +50,21 @@
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue';
+import { ref, reactive, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
-import { login, getUserInfo } from '../../api/user';
+import { login, getUserInfo, getCaptcha } from '../../api/user';
 
 const router = useRouter();
 const loginFormRef = ref(null);
 const loading = ref(false);
+const captchaUrl = ref('');
 
 // 登录表单
 const loginForm = reactive({
   username: '',
-  password: ''
+  password: '',
+  captcha: ''
 });
 
 // 表单验证规则
@@ -52,7 +75,21 @@ const loginRules = {
   password: [
     { required: true, message: '请输入密码', trigger: 'blur' },
     { min: 6, message: '密码长度不能小于6位', trigger: 'blur' }
+  ],
+  captcha: [
+    { required: true, message: '请输入验证码', trigger: 'blur' }
   ]
+};
+
+// 刷新验证码
+const refreshCaptcha = async () => {
+  try {
+    const res = await getCaptcha();
+    captchaUrl.value = res.data;
+  } catch (error) {
+    console.error('获取验证码失败:', error);
+    ElMessage.error('获取验证码失败');
+  }
 };
 
 // 处理登录
@@ -61,9 +98,6 @@ const handleLogin = () => {
     if (valid) {
       loading.value = true;
       try {
-        // 清除localStorage中的所有数据
-        localStorage.clear();
-        
         const res = await login(loginForm);
         // 保存token和角色
         localStorage.setItem('token', res.data);
@@ -81,10 +115,13 @@ const handleLogin = () => {
         
         ElMessage.success('登录成功');
         
-        // 跳转到用户仪表盘
-        router.push('/user/dashboard');
+        // 跳转到首页展示页面
+        router.push('/');
       } catch (error) {
         console.error('登录失败:', error);
+        ElMessage.error(error.message || '登录失败');
+        // 登录失败时刷新验证码
+        refreshCaptcha();
       } finally {
         loading.value = false;
       }
@@ -99,8 +136,17 @@ const goToRegister = () => {
 
 // 跳转到管理员登录页面
 const goToAdminLogin = () => {
-  router.push('/admin/login');
+  if (window.location.pathname !== '/') {
+    window.location.href = `/#/admin/login`;
+  } else {
+    router.push('/admin/login');
+  }
 };
+
+// 组件挂载时获取验证码
+onMounted(() => {
+  refreshCaptcha();
+});
 </script>
 
 <style scoped>
@@ -145,6 +191,38 @@ const goToAdminLogin = () => {
   margin-top: 20px;
 }
 
+.captcha-input {
+  width: 100%;
+}
+
+.captcha-wrapper {
+  height: 100%;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #f5f7fa;
+  border-top-right-radius: 4px;
+  border-bottom-right-radius: 4px;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.captcha-image {
+  cursor: pointer;
+  height: 100%;
+  width: 100%;
+  object-fit: cover;
+  transition: transform 0.2s;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.captcha-image:hover {
+  transform: scale(1.05);
+}
+
 .login-button {
   width: 100%;
 }
@@ -153,5 +231,12 @@ const goToAdminLogin = () => {
   display: flex;
   justify-content: space-between;
   margin-top: 10px;
+}
+
+@media (max-width: 500px) {
+  .login-card {
+    width: 90%;
+    padding: 20px;
+  }
 }
 </style>

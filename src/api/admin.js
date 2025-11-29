@@ -9,6 +9,14 @@ export function login(data) {
   });
 }
 
+// 获取验证码
+export function getCaptcha() {
+  return request({
+    url: '/admin/captcha',
+    method: 'get'
+  });
+}
+
 // 获取管理员信息
 export function getAdminInfo() {
   return request({

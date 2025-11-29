@@ -25,7 +25,8 @@ const getBaseURL = () => {
 // 创建axios实例
 const service = axios.create({
   baseURL: getBaseURL(), // API的base_url
-  timeout: 15000 // 请求超时时间
+  timeout: 15000, // 请求超时时间
+  withCredentials: true // 跨域请求时携带凭证
 });
 
 // request拦截器
@@ -42,6 +43,12 @@ service.interceptors.request.use(
     if (config.catchError) {
       config.hideErrorMessage = true;
       delete config.catchError; // 删除自定义参数，避免发送到服务器
+    }
+
+    // 允许部分接口在401时不自动跳转登录（例如公共页面）
+    if (config.skipAuthRedirect) {
+      config._skipAuthRedirect = true;
+      delete config.skipAuthRedirect;
     }
     
     return config;
@@ -71,12 +78,14 @@ service.interceptors.response.use(
         localStorage.removeItem('token');
         localStorage.removeItem('role');
         
-        // 跳转到登录页
-        const currentPath = router.currentRoute.value.path;
-        if (currentPath.startsWith('/admin')) {
-          router.push('/admin/login');
-        } else {
-          router.push('/user/login');
+        // 部分请求（如首页公共数据）需要留在原页面
+        if (!config._skipAuthRedirect) {
+          const currentPath = router.currentRoute.value.path;
+          if (currentPath.startsWith('/admin')) {
+            router.push('/admin/login');
+          } else {
+            router.push('/user/login');
+          }
         }
       }
       
@@ -95,7 +104,7 @@ service.interceptors.response.use(
     // 处理HTTP错误状态码
     const { response } = error;
     if (response) {
-      const { status } = response;
+      const { status, config } = response;
       
       // 401: 未登录或token过期
       if (status === 401) {
@@ -103,15 +112,15 @@ service.interceptors.response.use(
         localStorage.removeItem('token');
         localStorage.removeItem('role');
         
-        // 跳转到登录页
-        const currentPath = router.currentRoute.value.path;
-        if (currentPath.startsWith('/admin')) {
-          router.push('/admin/login');
-        } else {
-          router.push('/user/login');
+        if (!config?._skipAuthRedirect) {
+          const currentPath = router.currentRoute.value.path;
+          if (currentPath.startsWith('/admin')) {
+            router.push('/admin/login');
+          } else {
+            router.push('/user/login');
+          }
+          ElMessage.error('登录已过期，请重新登录');
         }
-        
-        ElMessage.error('登录已过期，请重新登录');
       } else {
         ElMessage.error(error.message || '系统异常');
       }
