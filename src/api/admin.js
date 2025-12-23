@@ -33,6 +33,21 @@ export function getUserList() {
   });
 }
 
+// 分页获取用户列表
+export function getUserListPaging(pageNum, pageSize, username, realName, studentNo) {
+  return request({
+    url: '/admin/user/list/paging',
+    method: 'get',
+    params: {
+      pageNum,
+      pageSize,
+      username,
+      realName,
+      studentNo
+    }
+  });
+}
+
 // 更新用户状态
 export function updateUserStatus(userId, status) {
   return request({

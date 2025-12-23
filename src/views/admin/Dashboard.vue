@@ -400,7 +400,7 @@ const initCharts = () => {
         orient: 'horizontal',
         bottom: 0,
         left: 'center',
-        data: ['已完成', '待审核', '已拒绝','已通过']
+        data: chartData.value.statusData.map(item => item.name)
       },
       series: [
         {

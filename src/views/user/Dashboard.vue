@@ -204,7 +204,8 @@ const initCharts = async () => {
     let processedStatusData = [
       { name: '已解决', value: 0 },
       { name: '待审核', value: 0 },
-      { name: '已拒绝', value: 0 }
+      { name: '已拒绝', value: 0 },
+      { name: '已通过', value: 0 }
     ];
     
     // 如果API返回了有效数据，则更新默认值
@@ -213,6 +214,7 @@ const initCharts = async () => {
       const resolvedItem = statusRes.data.find(item => item.name === '已解决');
       const pendingItem = statusRes.data.find(item => item.name === '待审核');
       const rejectedItem = statusRes.data.find(item => item.name === '已拒绝');
+      const approvedItem = statusRes.data.find(item => item.name === '已通过');
       
       // 更新数据值
       if (resolvedItem) {
@@ -225,6 +227,10 @@ const initCharts = async () => {
       
       if (rejectedItem) {
         processedStatusData[2].value = rejectedItem.value;
+      }
+      
+      if (approvedItem) {
+        processedStatusData[3].value = approvedItem.value;
       }
     }
     
@@ -358,7 +364,7 @@ const initCharts = async () => {
               orient: 'horizontal',
               bottom: 0,
               left: 'center',
-              data: ['已解决', '待审核', '已拒绝']
+              data: ['已解决', '待审核', '已拒绝', '已通过']
             },
             series: [
               {

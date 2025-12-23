@@ -2,6 +2,25 @@
   <div class="user-manage-container">
     <h2 class="page-title">用户管理</h2>
     
+    <!-- 搜索表单 -->
+    <el-card class="search-card">
+      <el-form :model="searchForm" inline>
+        <el-form-item label="用户名">
+          <el-input v-model="searchForm.username" placeholder="请输入用户名" clearable />
+        </el-form-item>
+        <el-form-item label="姓名">
+          <el-input v-model="searchForm.realName" placeholder="请输入姓名" clearable />
+        </el-form-item>
+        <el-form-item label="学号">
+          <el-input v-model="searchForm.studentNo" placeholder="请输入学号" clearable />
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" @click="handleSearch">搜索</el-button>
+          <el-button @click="handleReset">重置</el-button>
+        </el-form-item>
+      </el-form>
+    </el-card>
+    
     <!-- 用户列表 -->
     <el-card class="user-card">
       <el-table :data="userList" style="width: 100%" v-loading="loading">
@@ -35,6 +54,18 @@
           </template>
         </el-table-column>
       </el-table>
+      
+      <!-- 分页 -->
+      <el-pagination
+        v-model:current-page="pagination.currentPage"
+        v-model:page-size="pagination.pageSize"
+        :page-sizes="[10, 20, 50, 100]"
+        :total="pagination.total"
+        layout="total, sizes, prev, pager, next, jumper"
+        @size-change="handleSizeChange"
+        @current-change="handleCurrentChange"
+        style="margin-top: 20px; text-align: right;"
+      />
     </el-card>
   </div>
 </template>
@@ -42,18 +73,41 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { getUserList, updateUserStatus as apiUpdateUserStatus } from '../../api/admin';
+import { getUserList, getUserListPaging, updateUserStatus as apiUpdateUserStatus } from '../../api/admin';
 
 const loading = ref(false);
 const userList = ref([]);
 const defaultAvatar = 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png';
 
-// 获取用户列表
+// 搜索表单
+const searchForm = ref({
+  username: '',
+  realName: '',
+  studentNo: ''
+});
+
+// 分页信息
+const pagination = ref({
+  currentPage: 1,
+  pageSize: 10,
+  total: 0
+});
+
+// 分页获取用户列表
 const fetchUserList = async () => {
   loading.value = true;
   try {
-    const res = await getUserList();
-    userList.value = res.data;
+    const res = await getUserListPaging(
+      pagination.value.currentPage,
+      pagination.value.pageSize,
+      searchForm.value.username,
+      searchForm.value.realName,
+      searchForm.value.studentNo
+    );
+    userList.value = res.data.list;
+    pagination.value.total = res.data.total;
+    pagination.value.currentPage = res.data.pageNum;
+    pagination.value.pageSize = res.data.pageSize;
   } catch (error) {
     console.error('获取用户列表失败:', error);
   } finally {
@@ -81,6 +135,36 @@ const updateUserStatus = (user) => {
   }).catch(() => {});
 };
 
+// 搜索
+const handleSearch = () => {
+  pagination.value.currentPage = 1;
+  fetchUserList();
+};
+
+// 重置
+const handleReset = () => {
+  searchForm.value = {
+    username: '',
+    realName: '',
+    studentNo: ''
+  };
+  pagination.value.currentPage = 1;
+  fetchUserList();
+};
+
+// 分页大小改变
+const handleSizeChange = (size) => {
+  pagination.value.pageSize = size;
+  pagination.value.currentPage = 1;
+  fetchUserList();
+};
+
+// 页码改变
+const handleCurrentChange = (page) => {
+  pagination.value.currentPage = page;
+  fetchUserList();
+};
+
 onMounted(() => {
   fetchUserList();
 });
@@ -98,7 +182,29 @@ onMounted(() => {
   color: #303133;
 }
 
+.search-card {
+  margin-bottom: 20px;
+}
+
 .user-card {
   margin-bottom: 20px;
+}
+
+:deep(.el-form) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+:deep(.el-form-item) {
+  margin-bottom: 12px;
+  margin-right: 20px;
+}
+
+:deep(.el-form-item:last-child) {
+  margin-right: 0;
+  flex: 1;
+  min-width: 200px;
+  justify-content: flex-end;
 }
 </style>
