@@ -94,9 +94,10 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue';
+import { ref, reactive, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { getItemList } from '../../api/item';
+import eventBus from '../../utils/eventBus';
 
 const router = useRouter();
 const loading = ref(false);
@@ -191,6 +192,19 @@ const contactPublisher = (userId) => {
   router.push(`/user/chat?userId=${publisherId}`);
 };
 
+// 监听事件
+const setupEventListeners = () => {
+  eventBus.on('item-status-updated', () => {
+    console.log('[ItemList] 收到 item-status-updated 事件，刷新列表');
+    fetchItemList();
+  });
+};
+
+// 清理事件监听
+const cleanupEventListeners = () => {
+  eventBus.off('item-status-updated');
+};
+
 onMounted(() => {
   // 获取当前用户ID
   const userId = localStorage.getItem('userId');
@@ -203,6 +217,14 @@ onMounted(() => {
   queryParams.status = 1; // 默认显示已通过状态
 
   fetchItemList();
+  
+  // 设置事件监听
+  setupEventListeners();
+});
+
+onUnmounted(() => {
+  // 清理事件监听
+  cleanupEventListeners();
 });
 </script>
 
